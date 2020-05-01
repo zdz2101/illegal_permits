@@ -1,0 +1,12 @@
+name: sf_permits_illegalhomes
+title:
+username:
+account: zeloszhu
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2206842
+bundleId: 3083243
+url: https://zeloszhu.shinyapps.io/sf_permits_illegalhomes/
+when: 1588195064.15895
+asMultiple: FALSE
+asStatic: FALSE

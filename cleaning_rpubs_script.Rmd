@@ -1,0 +1,114 @@
+---
+title: "SFOpen"
+author: "Zelos Zhu"
+date: "4/28/2020"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(RSocrata)
+library(leaflet)
+library(htmltools)
+housing_permits = read.socrata("https://data.sfgov.org/resource/p4e4-a5a7.json")
+housing_permits_old = read.socrata("https://data.sfgov.org/resource/4jpb-z4kk.json")
+
+residential1 = housing_permits %>%
+  select(street_number, street_name, street_suffix, zipcode, neighborhoods_analysis_boundaries, permit_type_definition, description, existing_use, proposed_use, permit_creation_date, location.latitude, location.longitude) 
+
+residential2 = housing_permits_old %>%
+  select(street_number, street_name, street_suffix, zipcode,neighborhoods_analysis_boundaries, permit_type_definition, description, existing_use, proposed_use, permit_creation_date, location.latitude, location.longitude) 
+
+residential = rbind(residential1, residential2)
+
+x  = residential %>%
+  unite("full_address", street_number:zipcode, sep = " ")%>%
+  filter(existing_use == "1 family dwelling" | proposed_use == "1 family dwelling") %>%
+  filter(str_detect(description, "illegal|legalize"))
+
+write.csv(x, "single_fam_homes.csv", row.names = FALSE)
+
+y  = residential %>%
+  unite("full_address", street_number:zipcode, sep = " ")%>%
+  filter(existing_use == "2 family dwelling" | proposed_use == "2 family dwelling") %>%
+  filter(str_detect(description, "illegal|legalize"))
+
+z  = residential %>%
+  unite("full_address", street_number:zipcode, sep = " ")%>%
+  filter(existing_use == "apartments" | proposed_use == "apartments") %>%
+  filter(str_detect(description, "illegal|legalize"))
+
+write.csv(x, "single_fam_homes.csv", row.names = FALSE)
+write.csv(y, "two_fam_homes.csv", row.names = FALSE)
+write.csv(z, "apartments.csv", row.names = FALSE)
+```
+
+
+
+```{r, eval = FALSE}
+#Create leaflet
+house_locations = x %>%
+  mutate(lat = as.numeric(location.latitude),
+         long = as.numeric(location.longitude),
+         text = paste(full_address, description, sep=" - "),
+         text = paste(substring(permit_creation_date,1,4), text, sep = ": "),
+         text = paste("Permit created", text, sep =" "),
+         year = as.numeric(substring(permit_creation_date,1,4))) %>%
+  select(text, lat, long, year, neighborhoods_analysis_boundaries) #%>% filter(neighborhoods_analysis_boundaries %in% c("Inner Richmond", "Outer Richmond", "Sunset/Parkside", "Inner Sunset"))
+
+leaflet(house_locations) %>% addTiles() %>%
+  fitBounds(~min(long, na.rm=TRUE), ~min(lat, na.rm=TRUE), ~max(long, na.rm=TRUE), ~max(lat, na.rm=TRUE)) %>%
+  addMarkers(~long, ~lat, popup = ~htmlEscape(text))
+
+# getColor <- function(x) {
+#   sapply(x$year, function(year) {
+#     if(year <= 1989) {
+#       "green"
+#     } 
+#     else if(year >= 1990 & year <= 1999) {
+#       "red"
+#     } 
+#     else if(year >= 2000 & year <= 2009) {
+#       "orange"
+#     }
+#     else if(year >= 2010 & year <= 2019) {
+#       "blue"
+#     }
+#     else "yellow"
+#   }
+#   )
+# }
+# 
+# icons <- awesomeIcons(
+#   icon = 'ios-close',
+#   iconColor = 'black',
+#   library = 'ion',
+#   markerColor = getColor(house_locations)
+# )
+#leaflet(house_locations) %>% addTiles() %>%
+#  addAwesomeMarkers(~long, ~lat, popup = ~htmlEscape(text), icon=icons)
+```
+
+
+```{r, eval = FALSE}
+#houses with multiple permits
+multiple_fixes_ids = x %>%
+  filter(str_detect(description, "illegal|legalize")) %>%
+  group_by(full_address) %>%
+  count() %>%
+  filter(n >= 2) %>%
+  pull(full_address)
+
+#single fix homes
+single_fixes = residential_filter %>%
+  filter(str_detect(description, "illegal|legalize"), 
+         !(full_address %in% multiple_fixes))
+
+#multifix homes
+multiple_fixes = residential_filter %>%
+  filter(str_detect(description, "illegal|legalize") & full_address %in% multiple_fixes_ids) %>%
+  arrange(desc(full_address))
+
+single_fixes %>% View()
+multiple_fixes %>% View()
+```
